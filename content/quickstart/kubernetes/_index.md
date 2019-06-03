@@ -16,17 +16,6 @@ Pulumi is an infrastructure-as-code tool that exposes the Kubernetes resource AP
 SDK alongside other SDKs which span common cloud native utilities, cloud
 provider IaaS offerings, and their catalog of services - managed Kubernetes included.
 
-    ```typescript
-    import * as k8s as "@pulumi/kubernetes";
-
-    new k8s.yaml.ConfigFile("app.yaml");
-    ```
-
--   **Drop-in replacement for `kubectl apply`.** Anywhere you have a [kubeconfig file][kubeconfig],
-    you can use Pulumi.
-=======
->>>>>>> update(quickstart/k8s): revamp Pulumi and k8s messaging:quickstart/kubernetes/index.md
-
 The remainder of this document will demonstrate how to use Pulumi for Kubernetes development, as
 illustrated through a series of use cases and tutorials.
 
