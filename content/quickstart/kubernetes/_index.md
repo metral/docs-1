@@ -9,28 +9,23 @@ menu:
 
 <img src="/images/quickstart/k8s-purple.png" align="right">
 
-[Kubernetes][k8s] is an open source platform for running containerized applications on a cluster of
-machines. Applications are managed through a RESTful API that exposes mechanisms to deploy, scale,
-and introspect on resources in the cluster.
+[Kubernetes][k8s] is an open source project for running and managing containerized applications
+on a cluster of machines.
 
-Pulumi is an infrastructure-as-code tool that exposes a Kubernetes SDK that allows users to write
-Kubernetes applications in the language of their choice, such as JavaScript and Python. It is
-designed to fit in anywhere you already use Kubernetes:
-
--   **API-compatible with Kubernetes** -- users do not have to learn a new API to write Kubernetes
-    applications with Pulumi. (See the [Kubernetes][api-reference] and
-    [Pulumi]({{< relref "/reference/pkg/nodejs/pulumi/kubernetes" >}}) API documentation for more
-    details.)
-
--   **Compatible with Kubernetes YAML and Helm Charts.** For example:
+Pulumi is an infrastructure-as-code tool that exposes the Kubernetes resource API as an
+SDK alongside other SDKs which span common cloud native utilities, cloud
+provider IaaS offerings, and their catalog of services - managed Kubernetes included.
 
     ```typescript
     import * as k8s as "@pulumi/kubernetes";
+
     new k8s.yaml.ConfigFile("app.yaml");
     ```
 
 -   **Drop-in replacement for `kubectl apply`.** Anywhere you have a [kubeconfig file][kubeconfig],
     you can use Pulumi.
+=======
+>>>>>>> update(quickstart/k8s): revamp Pulumi and k8s messaging:quickstart/kubernetes/index.md
 
 The remainder of this document will demonstrate how to use Pulumi for Kubernetes development, as
 illustrated through a series of use cases and tutorials.
@@ -163,3 +158,4 @@ You can find a list of frequently-asked questions [here]({{< relref "faq.md" >}}
 [yarn]: https://yarnpkg.com/en/docs/install
 [aurora]: https://aws.amazon.com/rds/aurora/
 [guestbook]: https://github.com/pulumi/examples/tree/master/kubernetes-ts-guestbook
+[openapi]: https://github.com/kubernetes/kubernetes/tree/master/api/openapi-spec
