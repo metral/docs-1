@@ -17,25 +17,25 @@ The service manages your stack's state reliably. Simply run
     $ pulumi login
 
 and this command will prompt you for an access token, including a way to launch your web browser to
-easily obtain one. You can script by using PULUMI_ACCESS_TOKEN environment variable.
+easily obtain one. You can script by using `PULUMI_ACCESS_TOKEN` environment variable.
 
-By default, this will log into app.pulumi.com. If you prefer to log into a separate instance
-of the Pulumi service, such as Pulumi Enterprise, specify a <url>. For example, run
+By default, this will log into `app.pulumi.com`. If you prefer to log into a separate instance
+of the Pulumi service, such as Pulumi Enterprise, specify a URL. For example, run
 
     $ pulumi login https://pulumi.acmecorp.com
 
-to log in to a Pulumi Enterprise server running at the pulumi.acmecorp.com domain.
+to log in to a Pulumi Enterprise server running at the `pulumi.acmecorp.com` domain.
 
-For https:// URLs, the CLI will speak REST to a service that manages state and concurrency control.
+For `https://` URLs, the CLI will speak REST to a service that manages state and concurrency control.
 If you prefer to operate Pulumi independently of a service, and entirely local to your computer,
-pass file://<path>, where <path> will be where state checkpoints will be stored. For instance,
+pass `file://<path>`, where `<path>` will be where state checkpoints will be stored. For instance,
 
     $ pulumi login file://~
 
-will store your state information on your computer underneath ~/.pulumi. It is then up to you to
+will store your state information on your computer underneath `~/.pulumi`. It is then up to you to
 manage this state, including backing it up, using it in a team environment, and so on.
 
-As a shortcut, you may pass --local to use your home directory (this is an alias for file://~):
+As a shortcut, you may pass --local to use your home directory (this is an alias for `file://~`):
 
     $ pulumi login --local
 
