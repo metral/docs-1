@@ -7,20 +7,20 @@ menu:
 ---
 
 In this tutorial we'll launch a new, managed Kubernetes cluster in Elastic
-Kubernetes Service (EKS) on AWS. Then, we'll walk through Day-2 operations for
+Kubernetes Service (EKS) on AWS. Then we'll walk through Day-2 operations for
 Kubernetes to help you administer and update the cluster, and your workloads running on it.
 
-We'll showcase how to:
+We'll cover how to:
 
 1. Create various worker node groups with different settings, such as instance types and AMIs.
 1. Deploy a workload to the set of node groups: the [NGINX Ingress Controller][ingress-nginx], and a
 simple [echoserver][echoserver] app that echo's client request headers.
 1. Migrate NGINX from its original node group to a new, updated node
 group with zero downtime to it or the echoserver during load testing.
-1. And lastly, once migration has completed, we'll drain, delete, and remove the
+1. And lastly, once migration has completed, we'll decomission the
 original node group from Kubernetes and AWS.
 
-The code for this tutorial is available on [GitHub][example-gh].
+[View the code on GitHub][example-gh].
 
 <p align="center"><img src="/images/docs/reference/kubernetes/eks-update-nodegroups.svg" width="650"></p>
 
@@ -29,51 +29,52 @@ The code for this tutorial is available on [GitHub][example-gh].
 ## Table of Contents
 
 - [Initialize the Pulumi Project](#initialize-the-pulumi-project)
-- [Create an EKS Cluster & Deploy Workloads](#create-an-eks-cluster-deploy-workloads)
-- [Access the Workloads](#access-the-workloads)
+- [Create an EKS Cluster & Deploy Workload](#create-an-eks-cluster-deploy-workload)
+  * [Access the Workload](#access-the-workload)
 - [...But First, Let's Talk About Resource Updates](#but-first-let-s-talk-about-resource-updates)
   * [Pulumi's Approach: `create-before-delete`](#pulumi-s-approach-create-before-delete)
   * [Kubernetes Workloads: High-Availability (HA) & Rolling Updates](#kubernetes-workloads-high-availability-ha-rolling-updates)
 - [The Great Migration](#the-great-migration)
-  * [Step 0: Launch Load Tests](#step-0-launch-load-tests)
-  * [Step 1: Creating the new `4xlarge` Node Group](#step-1-creating-the-new-4xlarge-node-group)
-  * [Step 2: Retargeting NGINX at the `4xlarge` Node Group](#step-2-retargeting-nginx-at-the-4xlarge-node-group)
-  * [Step 3: Decomissioning the `2xlarge` Node Group](#step-3-decomissioning-the-2xlarge-node-group)
+  * [Step 0: Launch Load Tests (Optional)](#step-0-launch-load-tests-optional)
+  * [Step 1: Create the new `4xlarge` Node Group](#step-1-create-the-new-4xlarge-node-group)
+  * [Step 2: Migrate NGINX to the `4xlarge` Node Group](#step-2-migrate-nginx-to-the-4xlarge-node-group)
+  * [Step 3: Decomission the `2xlarge` Node Group](#step-3-decomission-the-2xlarge-node-group)
 - [Clean Up](#clean-up)
 - [Summary](#summary)
 
 ## Initialize the Pulumi Project
 
-1.  Start by cloning the [example][example-gh] to your local machine:
+1.  Start by cloning the [example][example-gh] to your local machine.
 
     ```bash
-    git clone https://github.com/pulumi/pulumi-eks
-    cd nodejs/eks/examples/migrate-nodegroups
+    git clone https://github.com/pulumi/examples
+    cd aws-ts-eks-migrate-nodegroups
     ```
 
-1.  Install the dependencies:
+1.  Install the dependencies.
 
     ```
     npm install
     ```
 
-1.  Create a new Pulumi [stack][stack]:
+1.  Create a new `dev` Pulumi [stack][stack].
 
     ```
-    pulumi stack init update-nodegroups-dev
+    pulumi stack init dev
     ```
 
-1. Set the Pulumi [configuration][pulumi-config] variables for the project:
+1. Set the Pulumi [configuration][pulumi-config] variables for the project.
+
+    Select any valid EKS region. The [AMIs][eks-amis] used later must match this region.
 
     ```bash
-    // Any valid EKS region. AMIs used must match this region.
 
     pulumi config set aws:region us-west-2
     ```
 
-## Create an EKS Cluster & Deploy Workloads
+## Create an EKS Cluster & Deploy Workload
 
-Perform the cluster and workload deployment:
+Create the cluster and deploy the workload by running an update:
 
 ```bash
 pulumi up
@@ -83,15 +84,9 @@ The update will create the following resources in AWS:
 
 * A VPC in our region, with public & private subnets across all of the region's availability zones.
 * The IAM Roles & Instance Profiles for each node group.
-* An EKS cluster with `v1.13` of Kubernetes, with settings that include:
-    * Private worker nodes
-    * Resource tagging, and
-    * Omission of the default node group in favor of our own managed worker
-      node groups.
-* A standard `t2.medium` worker node group using the recent `v1.13.7` worker [AMI][eks-amis].
-	* For general purpose workloads, such as the `echoserver`.
-* A 2xlarge `t3.2xlarge` worker node group using the previous `v1.12.7` worker [AMI][eks-amis].
-	* For larger, intensive workloads such as the [NGINX Ingress Controller][ingress-nginx].
+* An EKS cluster with `v1.13` of Kubernetes.
+* A standard `t2.medium` worker node group using the recent `v1.13.7` worker [AMI][eks-amis], for use by general purpose workloads such as the EchoServer.
+* A 2xlarge `t3.2xlarge` worker node group using an older `v1.12.7` worker [AMI][eks-amis], for use use by larger, intensive workloads such as the [NGINX Ingress Controller][ingress-nginx].
 
 Once the update is complete, verify the cluster, node groups, and Pods are up
 and running:
@@ -103,7 +98,7 @@ kubectl get nodes -o wide --show-labels -l beta.kubernetes.io/instance-type=t3.2
 kubectl get pods --all-namespaces -o wide --show-labels
 ```
 
-## Access the Workloads
+### Access the Workload
 
 With the deployment from the previous step completed, we can leverage Pulumi
 [stack outputs][stack-outputs] to retrieve the public endpoint of the
@@ -113,13 +108,19 @@ This load balancer fronts the NGINX Ingress Controller, which in turn
 manages the ingress for the `echoserver`:
 
 ```bash
+pulumi stack output nginxServiceUrl
+```
+
+Example: 
+```
 $ pulumi stack output nginxServiceUrl
 a3a6ae14f9e6d11e99ea4023e81f316e-1155138699.us-east-2.elb.amazonaws.com
 ```
 
-After the load balancer is provisioned and resolvable on AWS
-(takes ~2-3 minutes post-deployment), let's access the `echoserver` behind
+After the load balancer is provisioned and resolvable on AWS, let's access the `echoserver` behind
 NGINX:
+
+> Note: It can take a few minutes for the load balancer to be resolvable.
 
 ```bash
 export LB=`pulumi stack output nginxServiceUrl`
@@ -132,8 +133,7 @@ balancer's endpoint with custom host headers.
 
 On success, we'll see output similar to the following:
 
-```bash
-...
+```
 Hostname: echoserver-xlvnkcng-74648fd4dd-8jck4
 
 Pod Information:
@@ -168,8 +168,7 @@ Request Body:
 ```
 
 With our apps now verified as working and accessible, we're ready to see how we
-can leverage Kubernetes and Pulumi to update our worker node groups, and 
-migrate our workloads.
+can leverage Kubernetes and Pulumi to migrate workloads across worker node groups.
 
 ## ...But First, Let's Talk About Resource Updates
 
@@ -182,10 +181,10 @@ resource instantiations to avoid collisions, and to assist in
 zero-downtime replacements. This is achieved by using a **create-before-delete**
 approach in the Pulumi programming model where:
 
-* First, the new version of the resource is created,
-* Then, any references to the original resource are updated to point
-to the new resource,
-* And lastly, on success of the updates, the original resource is deleted.
+* The new version of the resource is created.
+* Any references to the original resource are updated to point
+to the new resource.
+* On success of the updates, the original resource is deleted.
 
 These semantics allow Pulumi to replace resources using a blue/green deployment
 strategy by default, and this works for most scenarios.
@@ -278,15 +277,11 @@ The node group that NGINX will select and target will go from:
   * Using `v1.12.7`of Kubernetes, in a pool of (3) `t3.2xlarge` worker instances ->
   * Using `v1.13.7`of Kubernetes, in a pool of (5) `c5.4xlarge` worker instances.
 
-We will also be using the [`hey`][hey-load-testing] load testing tool through
-out our migration to consistently hit the endpoint and path for the
-`echoserver` behind NGINX to ensure we acheive zero-downtime.
-
-### Step 0: Launch Load Tests
+### Step 0: Launch Load Tests (Optional)
 
 As we migrate NGINX from the `2xlarge` -> `4xlarge` node group, we'll kick off
 a load testing script against the endpoint and path of the `echoserver` on our
-cluster.
+cluster to ensure we acheive zero-downtime.
 
 You can install the [`hey`][hey-load-testing] load testing tool locally to your
 machine by doing the following:
@@ -301,6 +296,7 @@ Using the `LB` environment variable previously defined in the
 concurrent requests at a time, e.g. run testing across 75 iterations:
 
 ```bash
+export LB=`pulumi stack output nginxServiceUrl`
 ./scripts/load-testing.sh $LB 75
 ```
 
@@ -308,17 +304,27 @@ concurrent requests at a time, e.g. run testing across 75 iterations:
 > testing (millions), a seperate machine for testing would be best suited
 for overall network performance and throughput on your client.
 
-### Step 1: Creating the new `4xlarge` Node Group
+### Step 1: Create the new `4xlarge` Node Group
 
 Next, we'll create a new node group in AWS using Pulumi for the `4xlarge` node
-group. This is as simple as defining a new node group in our program:
+group. This is as simple as defining a new node group at the end of our program:
 
-<p align="center"><img src="/images/docs/reference/kubernetes/ng-4xlarge.svg" width="650"/></p>
+```typescript
+// Create a 4xlarge node group of c5.4xlarge workers. This new node group will
+// be used to migrate NGINX away from the 2xlarge node group.
+const ng4xlarge = utils.createNodeGroup(`${projectName}-ng-4xlarge`, {
+    ami: "ami-03a55127c613349a7", // k8s v1.13.7 in us-west-2
+    instanceType: "c5.4xlarge",
+    desiredCapacity: 5,
+    cluster: myCluster,
+    instanceProfile: instanceProfiles[2],
+    taints: {"nginx": { value: "true", effect: "NoSchedule"}},
+});
+```
 
-You can make this change yourself in your `index.ts` by running the following: 
+Append the above snippet into the Pulumi program, and run an update:
 
 ```bash
-cp steps/step1/index.ts index.ts
 pulumi up
 ```
 
@@ -328,17 +334,16 @@ Once the update is complete, verify the new `c5.4xlarge` node group is up and ru
 kubectl get nodes -o wide --show-labels -l beta.kubernetes.io/instance-type=c5.4xlarge
 ```
 
-### Step 2: Retargeting NGINX at the `4xlarge` Node Group
+### Step 2: Migrate NGINX to the `4xlarge` Node Group
 
-Now, we'll retarget the NGINX Service away from the `2xlarge` node group over to the
+Now, we'll migrate the NGINX service away from the `2xlarge` node group over to the
 `4xlarge` node group, by changing its node selector scheduling terms:
 
 <p align="center"><img src="/images/docs/reference/kubernetes/target-ng-4xlarge.svg" width="650"/></p>
 
-You can make this change yourself in your `index.ts` by running the following: 
+Edit the `nodeSelectorTermValues` to use `c5.4xlarge` in the Pulumi program, and run an update:
 
 ```bash
-cp steps/step2/index.ts index.ts
 pulumi up
 ```
 
@@ -354,11 +359,11 @@ kubectl get pods --all-namespaces -o wide --show-labels -l app=nginx-ing-cntlr
 kubectl get nodes -o wide --show-labels -l beta.kubernetes.io/instance-type=c5.4xlarge
 ```
 
-You should also notice a linear up-tick in **requests per second** in the
+> Note: You should also notice a linear up-tick in **requests per second** in the
 load testing results, due to the more capable `c5.4xlarge` worker instances
 being used.
 
-### Step 3: Decomissioning the `2xlarge` Node Group
+### Step 3: Decomission the `2xlarge` Node Group
 
 With NGINX validated to be up and running on the `4xlarge` node group, we can
 now commence the decomissioning of the original `2xlarge` node group no
@@ -378,27 +383,34 @@ and remove the nodes from the cluster using `kubectl delete node`:
 ./scripts/delete-t3.2xlarge-nodes.sh
 ```
 
-After node deletion from the cluster has completed, and we've verified that the
-instances backing our load balancer are up-to-date and no longer include the
-`2xlarge` node group, we can remove its definition from our Pulumi program:
+Next, we'll scale down the node group Auto Scaling Group completely:
 
-<p align="center"><img src="/images/docs/reference/kubernetes/remove-ng-2xlarge.svg" width="650"/></p>
+<p align="center"><img src="/images/docs/reference/kubernetes/scale-down-ng-2xlarge.svg" width="650"/></p>
 
-You can make this change yourself in your `index.ts` by running the following: 
+Edit the `desiredCapacity` to `0` for the `2xlarge` node group in the Pulumi program, and run an update:
 
 ```bash
-cp steps/step3/index.ts index.ts
 pulumi up
 ```
 
-If we've executed all of the steps as follows, then we'll have successfully migrated
+Lastly, once the Auto Scaling Group is scaled down, we can remove the node group from our Pulumi program:
+
+<p align="center"><img src="/images/docs/reference/kubernetes/remove-ng-2xlarge.svg" width="650"/></p>
+
+Delete the snippet above from the Pulumi program, and run an update:
+
+```bash
+pulumi up
+```
+
+If you've executed all of the previous steps, then you'll have successfully migrated
 NGINX from the `2xlarge` node group to the `4xlarge` group with
 zero downtime to it or the `echoserver`, and removed the
 `2xlarge` node group completely from Kubernetes and AWS.
 
-We can also verify the load testing results to validate that our requests have all 
+You can also verify the load testing results to validate that our requests have all 
 returned with `HTTP 200` status codes through out the entire migration
-process.
+process. 🍹🎉
 
 ## Clean Up
 
@@ -425,7 +437,7 @@ For a follow-up example on how to further use Pulumi to create Kubernetes
 clusters, or deploy workloads to a cluster, check out the rest of the
 [Kubernetes tutorials]({{< relref "/docs/reference/tutorials/kubernetes" >}}).
 
-[example-gh]: https://github.com/pulumi/pulumi-eks/tree/master/nodejs/eks/examples/migrate-nodegroups
+[example-gh]: https://github.com/pulumi/examples/tree/master/aws-ts-eks-migrating-nodegroups
 [stack]: https://pulumi.io/reference/stack
 [eks-amis]: https://docs.aws.amazon.com/eks/latest/userguide/eks-optimized-ami.html
 [ingress-nginx]: https://github.com/kubernetes/ingress-nginx
